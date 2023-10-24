@@ -1,7 +1,7 @@
 locals {
   common_tags = {
-    environment=  "prod"
-    project = "interview"
+    environment = "prod"
+    project     = "interview"
   }
 }
 
@@ -17,7 +17,7 @@ resource "azurerm_storage_account" "standard" {
   location                 = azurerm_resource_group.rg.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
-  tags = local.common_tags
+  tags                     = local.common_tags
 }
 
 resource "azurerm_app_service_plan" "this" {
@@ -51,9 +51,8 @@ resource "azurerm_function_app" "this" {
   version                    = "~4"
 
   app_settings = {
-    FUNCTIONS_WORKER_RUNTIME = "python"
+    FUNCTIONS_WORKER_RUNTIME       = "python"
     APPINSIGHTS_INSTRUMENTATIONKEY = "${azurerm_application_insights.test.instrumentation_key}"
-
   }
 
   site_config {
@@ -79,16 +78,20 @@ resource "azurerm_key_vault" "lz_kv" {
   enable_rbac_authorization   = true
 
   sku_name = "standard"
-#  network_acls {
-#    default_action             = "Deny"
-#    bypass                     = "AzureServices"
-#    virtual_network_subnet_ids = [azurerm_subnet.aks.id]
-#    ip_rules                   = var.admin_ip_address
-#  }
 }
 
 resource "azurerm_key_vault_secret" "standard_key" {
   name         = "azurestorageaccountkey"
   value        = azurerm_storage_account.standard.primary_access_key
   key_vault_id = azurerm_key_vault.lz_kv.id
+  depends_on   = [azurerm_role_assignment.this]
+}
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_role_assignment" "this" {
+  scope                = azurerm_key_vault.lz_kv.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = data.azurerm_client_config.current.object_id
+  depends_on           = [azurerm_key_vault.lz_kv]
 }
